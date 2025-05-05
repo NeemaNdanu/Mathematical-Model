@@ -1,0 +1,1235 @@
+---
+title: "project 2"
+author: "Nyabuto David Mouti"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Loading needed Libraries
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(DiagrammeR)
+```
+
+## schematic
+
+```{r}
+# Define the diagram
+diagram <- grViz("
+digraph SEIRD_ABM {
+  graph [layout = dot, rankdir = LR]
+
+  # Nodes
+  node [shape = ellipse, style = filled, fillcolor = orange]
+  S [label = 'Susceptible']
+  E [label = 'Exposed']
+  I [label = 'Infectious']
+  R [label = 'Recovered']
+  D [label = 'Dead']
+
+  # Agent-Based Model (ABM) for Individual Interactions
+  subgraph cluster_ABM {
+    label = 'Agent-Based Model (ABM)'
+    color = gray
+    style = dashed
+    A1 [label = 'School\nInteractions']
+    A2 [label = 'Neighborhood\nInteractions']
+    A3 [label = 'Church\nInteractions']
+  }
+
+  # Connections
+  S -> E [label = 'β * S * I']
+  E -> I [label = 'σ * E']
+  I -> R [label = 'γ * I']
+  I -> D [label = 'μ * I']
+
+ 
+}
+")
+
+# Render the schematic
+diagram
+
+
+
+
+```
+
+## Parameters
+Define Parameters and Initial Population
+```{r}
+# Define parameters
+population_size <- 2000
+initial_infectious <- 10
+transmission_probability <- 0.01  # Transmission rate
+incubation_period <- 10  # days
+infectious_period <- 8   # days
+recovery_rate <- 1/infectious_period  # Recovery rate
+death_rate <- 0.001  # Very small death rate
+
+# Define age groups and contact rates
+age_groups <- c("Infant", "Child", "Adult")
+age_group_distribution <- c(0.4, 0.4, 0.2)  # Proportions of each age group
+contact_rates <- c("Infant" = 5, "Child" = 16, "Adult" = 10)
+
+# Create a data frame to store the state of each agent
+set.seed(123)
+population <- data.frame(
+  id = 1:population_size,
+  state = c(rep("Infectious", initial_infectious), rep("Susceptible", population_size - initial_infectious)),
+  days_in_state = 0,
+  age_group = sample(age_groups, population_size, replace = TRUE, prob = age_group_distribution),
+  contacts_per_day = NA,
+  vaccinated = FALSE,
+  stringsAsFactors = FALSE
+)
+
+population$contacts_per_day <- contact_rates[population$age_group]
+
+head(population)
+
+
+
+```
+Define Parameters: Sets the key parameters for the simulation, including the size of the population, initial number of infectious individuals, transmission probability, incubation and infectious periods, recovery rate, and death rate.
+
+Define Age Groups and Contact Rates: Categorizes the population into infants, children, and adults with specified proportions and assigns contact rates based on age group.
+
+Create Initial Population: Initializes the population data frame with each individual’s ID, initial health state, days in current state, age group, daily contacts, and vaccination status.
+
+## Simulation Functions
+
+```{r}
+
+update_state <- function(population) {
+  infected_ids <- which(population$state == "Infectious")
+  
+  if (length(infected_ids) > 0) {
+    # Identify contacts and vaccinate
+    contacts <- vector()
+    for (id in infected_ids) {
+      contacts <- c(contacts, sample(1:nrow(population), population$contacts_per_day[id], replace = TRUE))
+    }
+    contacts <- unique(contacts)
+    for (id in contacts) {
+      if (!population$vaccinated[id] && population$state[id] == "Susceptible") {
+        population$state[id] <- "Exposed"
+        population$days_in_state[id] <- 0
+      }
+    }
+  }
+  
+  # Progress disease states
+  population <- population %>%
+    mutate(
+      days_in_state = ifelse(state %in% c("Exposed", "Infectious"), days_in_state + 1, days_in_state),
+      state = case_when(
+        state == "Exposed" & days_in_state >= incubation_period ~ "Infectious",
+        state == "Infectious" & days_in_state >= infectious_period & runif(n()) > death_rate ~ "Recovered",
+        state == "Infectious" & days_in_state >= infectious_period & runif(n()) <= death_rate ~ "Dead",
+        TRUE ~ state
+      )
+    )
+  
+  return(population)
+}
+
+```
+
+
+
+Identify Contacts: Identifies contacts for each infectious individual based on their daily contacts. These contacts are potential new exposures.
+
+Vaccinate Contacts: Checks if contacts are susceptible and not vaccinated, then transitions them to the exposed state.
+
+Progress Disease States: Updates the health state of each individual based on the duration in their current state. Susceptible individuals can become exposed, exposed individuals become infectious after the incubation period, infectious individuals either recover or die after the infectious period, influenced by a small death rate.
+
+
+
+
+```{r}
+# Number of days to simulate
+days <- 200
+# Store results for analysis
+results <- data.frame(day = 1:days, Susceptible = NA, Exposed = NA, Infectious = NA, Recovered = NA, Dead = NA)
+
+for (day in 1:days) {
+  population <- update_state(population)
+  results[day, 2:6] <- table(factor(population$state, levels = c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead")))
+}
+
+results
+
+
+
+
+```
+
+## Results 
+
+```{r}
+# Transform the results for plotting
+results_long <- results %>%
+  pivot_longer(cols = -day, names_to = "state", values_to = "count")
+
+# Plot the results
+ggplot(results_long, aes(x = day, y = count, color = state)) +
+  geom_line() +
+  labs(title = "Measles Spread Simulation with SEIRD Compartments", x = "Day", y = "Number of Individuals")
+
+
+
+
+
+```
+The graph displays the results of the measles spread simulation using an SEIRD (Susceptible, Exposed, Infectious, Recovered, Dead) model over a period of 50 days. Here’s the interpretation:
+
+Susceptible (Purple): The number of susceptible individuals decreases rapidly in the initial phase of the simulation, indicating a quick spread of the infection as susceptible individuals become exposed.
+
+Exposed (Yellow): The exposed population rises sharply after the initial exposure to the infection, peaking around day 10. This suggests that many susceptible individuals quickly become exposed to the virus.
+
+Infectious (Green): The number of infectious individuals begins to increase shortly after the exposed individuals. This population peaks around day 15, indicating the time taken for exposed individuals to become infectious.
+
+Recovered (Blue): The recovered population starts to increase after the peak of the infectious population. By day 20, most of the population has recovered, reaching a plateau, indicating that the recovery rate is high and effective.
+
+Dead (Pink): The number of dead individuals increases slightly after the infectious period but remains relatively low compared to other compartments. This aligns with the expectation that measles has a low mortality rate.
+
+Overall, the graph shows a rapid initial spread of measles, with most individuals transitioning from susceptible to exposed and then to infectious. Recovery happens relatively quickly, and the death rate remains low throughout the simulation. By the end of the 50-day period, the majority of the population has either recovered or, to a lesser extent, died, with very few individuals remaining susceptible. This simulation effectively demonstrates the dynamics of measles spread and the impact of recovery and low mortality rates.
+
+
+##  Incorporate Social Settings
+
+Define Social Networks
+
+```{r}
+# Define social networks
+set.seed(123)
+population$school <- sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.3, 0.7))
+population$neighborhood <- sample(1:2000, population_size, replace = TRUE)
+population$church <- sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.4, 0.6))
+
+# Create adjacency matrices for each network
+school_network <- outer(population$school, population$school, FUN = "==")
+neighborhood_network <- outer(population$neighborhood, population$neighborhood, FUN = "==")
+church_network <- outer(population$church, population$church, FUN = "==")
+
+
+```
+
+
+Define Social Networks: Assigns each individual to school, neighborhood, and church networks based on probabilities.
+
+
+Create Adjacency Matrices: Constructs matrices to represent connections within each social network. These matrices help in identifying which individuals are connected in each social setting.
+
+```{r}
+
+update_state_social <- function(population, school_network, neighborhood_network, church_network) {
+  infected_ids <- which(population$state == "Infectious")
+  
+  if (length(infected_ids) > 0) {
+    # Identify contacts in each social setting and vaccinate
+    contacts <- vector()
+    for (id in infected_ids) {
+      if (population$school[id]) {
+        contacts <- c(contacts, which(school_network[id, ]))
+      }
+      contacts <- c(contacts, which(neighborhood_network[id, ]))
+      if (population$church[id]) {
+        contacts <- c(contacts, which(church_network[id, ]))
+      }
+    }
+    contacts <- unique(contacts)
+    for (id in contacts) {
+      if (!population$vaccinated[id] && population$state[id] == "Susceptible") {
+        population$state[id] <- "Exposed"
+        population$days_in_state[id] <- 0
+      }
+    }
+  }
+  
+  # Progress disease states
+  population <- population %>%
+    mutate(
+      days_in_state = ifelse(state %in% c("Exposed", "Infectious"), days_in_state + 1, days_in_state),
+      state = case_when(
+        state == "Exposed" & days_in_state >= incubation_period ~ "Infectious",
+        state == "Infectious" & days_in_state >= infectious_period & runif(n()) > death_rate ~ "Recovered",
+        state == "Infectious" & days_in_state >= infectious_period & runif(n()) <= death_rate ~ "Dead",
+        TRUE ~ state
+      )
+    )
+  
+  return(population)
+}
+
+
+```
+
+
+```{r}
+
+# Number of days to simulate
+days <- 200
+# Store results for analysis
+results_social <- data.frame(day = 1:days, Susceptible = NA, Exposed = NA, Infectious = NA, Recovered = NA, Dead = NA)
+
+for (day in 1:days) {
+  population <- update_state_social(population, school_network, neighborhood_network, church_network)
+  results_social[day, 2:6] <- table(factor(population$state, levels = c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead")))
+}
+
+results_social
+
+
+
+
+```
+
+
+Identify Social Contacts: Identifies contacts for each infectious individual within their school, neighborhood, and church networks.
+
+
+Update State: Progresses the disease states similar to the previous function but considers interactions within the defined social networks.
+
+
+## Analysis 
+```{r}
+
+# Load necessary libraries
+library(dplyr)
+library(igraph)
+library(ggplot2)
+
+# Define function to create network graphs
+create_network_graph <- function(population, day, school_network, neighborhood_network, church_network) {
+  # Create igraph objects for each network
+  school_graph <- graph_from_adjacency_matrix(school_network, mode = "undirected", diag = FALSE)
+  neighborhood_graph <- graph_from_adjacency_matrix(neighborhood_network, mode = "undirected", diag = FALSE)
+  church_graph <- graph_from_adjacency_matrix(church_network, mode = "undirected", diag = FALSE)
+  
+  # Plot and save the graphs
+  png(paste0("network_graph_day_", day, ".png"))
+  par(mfrow = c(1, 3))
+  plot(school_graph, vertex.size = 2, vertex.label = NA, main = paste("School Network - Day", day))
+  plot(neighborhood_graph, vertex.size = 2, vertex.label = NA, main = paste("Neighborhood Network - Day", day))
+  plot(church_graph, vertex.size = 2, vertex.label = NA, main = paste("Church Network - Day", day))
+  dev.off()
+}
+
+# Run the simulation and create network graphs for 50 days#days <- 70
+results_social <- data.frame(day = 1:days, Susceptible = NA, Exposed = NA, Infectious = NA, Recovered = NA, Dead = NA)
+
+for (day in 1:days) {
+  population <- update_state_social(population, school_network, neighborhood_network, church_network)
+  results_social[day, 2:6] <- table(factor(population$state, levels = c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead")))
+  
+  # Create network graphs for the current day
+  create_network_graph(population, day, school_network, neighborhood_network, church_network)
+}
+
+# Display the results
+head(results_social)
+
+
+
+
+
+```
+
+```{r}
+
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(grid)
+library(gridExtra)
+library(png)
+
+# Define the function to create and save network graphs
+create_detailed_network_graph <- function(population, day, social_network, infection_status) {
+  # Create igraph object for the network
+  graph <- graph_from_adjacency_matrix(social_network, mode = "undirected", diag = FALSE)
+  
+  # Set vertex colors based on the infection status of each individual
+  vertex_colors <- ifelse(population$state == "Susceptible", "blue",
+                          ifelse(population$state == "Exposed", "yellow",
+                                 ifelse(population$state == "Infectious", "red",
+                                        ifelse(population$state == "Recovered", "green", "black"))))
+  
+  # Set infection outline
+  vertex_frame_color <- ifelse(infection_status, "red", "black")
+  
+  # Create layout
+  layout <- layout_with_fr(graph)
+  
+  # Convert to a ggplot-friendly format
+  plot_data <- data.frame(layout)
+  plot_data$id <- 1:nrow(plot_data)
+  plot_data$state <- population$state
+  plot_data$color <- vertex_colors
+  plot_data$frame_color <- vertex_frame_color
+  
+  edges <- get.edgelist(graph)
+  edges_df <- data.frame(edges)
+  colnames(edges_df) <- c("x", "y")
+  
+  # Plot and save the graphs using ggplot2
+  p <- ggplot() +
+    geom_segment(data = edges_df, aes(x = plot_data$X1[edges_df$x], y = plot_data$X2[edges_df$x],
+                                      xend = plot_data$X1[edges_df$y], yend = plot_data$X2[edges_df$y]), 
+                 color = "grey", size = 0.2) +
+    geom_point(data = plot_data, aes(x = X1, y = X2, color = color, fill = frame_color), size = 4, shape = 21) +
+    scale_color_identity() +
+    scale_fill_identity() +
+    theme_void() +
+    ggtitle(paste("Network - Day", day))
+  
+  ggsave(paste0("network_graph_day_", day, ".png"), plot = p, width = 10, height = 10)
+}
+
+# Define population and initialize state
+set.seed(123)
+population_size <- 500
+population <- data.frame(
+  id = 1:population_size,
+  state = sample(c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead"), population_size, replace = TRUE),
+  days_in_state = 0,
+  stringsAsFactors = FALSE
+)
+
+# Example adjacency matrices for social networks
+school_network <- matrix(sample(0:1, population_size^2, replace = TRUE, prob = c(0.99, 0.01)), population_size, population_size)
+neighborhood_network <- matrix(sample(0:1, population_size^2, replace = TRUE, prob = c(0.99, 0.01)), population_size, population_size)
+church_network <- matrix(sample(0:1, population_size^2, replace = TRUE, prob = c(0.99, 0.01)), population_size, population_size)
+
+# Infection status for outline
+infection_status <- population$state == "Infectious"
+
+# Define transmission rates for each setting
+transmission_rates <- list(
+  school = 0.1,      # Higher transmission rate for schools
+  church = 0.05,     # Moderate transmission rate for churches
+  neighborhood = 0.03 # Lower transmission rate for neighborhoods
+)
+
+# Function to update state based on social settings with different transmission rates
+update_state_social_weekly <- function(population, day, school_network, neighborhood_network, church_network, transmission_rates) {
+  day_of_week <- (day - 1) %% 7 + 1  # Calculate the day of the week (1 = Monday, ..., 7 = Sunday)
+  if (day_of_week <= 5) {
+    # School days
+    social_network <- school_network
+    transmission_rate <- transmission_rates$school
+  } else if (day_of_week == 6) {
+    # Church day
+    social_network <- church_network
+    transmission_rate <- transmission_rates$church
+  } else {
+    # Neighborhood day
+    social_network <- neighborhood_network
+    transmission_rate <- transmission_rates$neighborhood
+  }
+  
+  infected_ids <- which(population$state == "Infectious")
+  
+  if (length(infected_ids) > 0) {
+    # Identify contacts in the current social setting and expose based on transmission rate
+    contacts <- vector()
+    for (id in infected_ids) {
+      contact_ids <- which(as.logical(social_network[id, ]))
+      new_exposures <- contact_ids[runif(length(contact_ids)) < transmission_rate]
+      contacts <- c(contacts, new_exposures)
+    }
+    contacts <- unique(contacts)
+    for (id in contacts) {
+      if (population$state[id] == "Susceptible") {
+        population$state[id] <- "Exposed"
+      }
+    }
+  }
+  
+  # Progress disease states
+  population <- population %>%
+    mutate(
+      days_in_state = ifelse(state %in% c("Exposed", "Infectious"), days_in_state + 1, days_in_state),
+      state = case_when(
+        state == "Exposed" & days_in_state >= 5 ~ "Infectious",  # Example incubation period
+        state == "Infectious" & days_in_state >= 10 ~ "Recovered",  # Example infectious period
+        TRUE ~ state
+      )
+    )
+  
+  return(list(population = population, social_network = social_network))
+}
+
+# Run the simulation and create network graphs for 7 days as an example
+days <- 200
+for (day in 1:days) {
+  result <- update_state_social_weekly(population, day, school_network, neighborhood_network, church_network, transmission_rates)
+  population <- result$population
+  social_network <- result$social_network
+  
+  # Create and save network graphs for the current day
+  create_detailed_network_graph(population, day, social_network, infection_status)
+}
+
+# Function to display all network graphs
+display_all_network_graphs <- function(days) {
+  plots <- list()
+  
+  for (day in 1:days) {
+    img_path <- paste0("network_graph_day_", day, ".png")
+    img <- readPNG(img_path)
+    g <- rasterGrob(img, interpolate = TRUE)
+    plots[[day]] <- g
+  }
+  
+  do.call("grid.arrange", c(plots, ncol = 3))
+}
+
+# Example usage to display network graphs for all 7 days
+display_all_network_graphs(7)
+
+
+
+```
+
+
+## vaccinantion 
+How long does it take before the epidemic peak?
+
+```{r}
+
+# Initialize the population
+set.seed(123)
+population_size <- 2000
+population <- data.frame(
+  id = 1:population_size,
+  state = "Susceptible",
+  days_in_state = 0,
+  school = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.3, 0.7)),
+  neighborhood = sample(1:2000, population_size, replace = TRUE),
+  church = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.4, 0.6)),
+  vaccinated = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.5, 0.5)),
+  stringsAsFactors = FALSE
+)
+
+# Introduce one initial infectious case
+population$state[sample(1:population_size, 1)] <- "Infectious"
+
+# Function to update state based on social settings with different transmission rates
+update_state_social_weekly <- function(population, day, school_network, neighborhood_network, church_network, transmission_rates) {
+  day_of_week <- (day - 1) %% 7 + 1  # Calculate the day of the week (1 = Monday, ..., 7 = Sunday)
+  if (day_of_week <= 5) {
+    # School days
+    social_network <- school_network
+    transmission_rate <- transmission_rates$school
+  } else if (day_of_week == 6) {
+    # Church day
+    social_network <- church_network
+    transmission_rate <- transmission_rates$church
+  } else {
+    # Neighborhood day
+    social_network <- neighborhood_network
+    transmission_rate <- transmission_rates$neighborhood
+  }
+  
+  infected_ids <- which(population$state == "Infectious")
+  
+  if (length(infected_ids) > 0) {
+    # Identify contacts in the current social setting and expose based on transmission rate
+    contacts <- vector()
+    for (id in infected_ids) {
+      contact_ids <- which(as.logical(social_network[id, ]))
+      new_exposures <- contact_ids[runif(length(contact_ids)) < transmission_rate]
+      contacts <- c(contacts, new_exposures)
+    }
+    contacts <- unique(contacts)
+    for (id in contacts) {
+      if (population$state[id] == "Susceptible" && !population$vaccinated[id]) {
+        population$state[id] <- "Exposed"
+      }
+    }
+  }
+  
+  # Progress disease states
+  population <- population %>%
+    mutate(
+      days_in_state = ifelse(state %in% c("Exposed", "Infectious"), days_in_state + 1, days_in_state),
+      state = case_when(
+        state == "Exposed" & days_in_state >= 5 ~ "Infectious",  # Example incubation period
+        state == "Infectious" & days_in_state >= 10 ~ "Recovered",  # Example infectious period
+        TRUE ~ state
+      )
+    )
+  
+  return(population)
+}
+
+# Simulation parameters
+days <- 200
+results <- data.frame(day = 1:days, Susceptible = NA, Exposed = NA, Infectious = NA, Recovered = NA, Dead = NA)
+
+# Run the simulation
+for (day in 1:days) {
+  population <- update_state_social_weekly(population, day, school_network, neighborhood_network, church_network, transmission_rates)
+  results[day, 2:6] <- table(factor(population$state, levels = c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead")))
+}
+
+# Find the day of the epidemic peak
+peak_day <- which.max(results$Infectious)
+
+# Plot the SEIRD line graph
+results_long <- results %>% pivot_longer(cols = -day, names_to = "state", values_to = "count")
+ggplot(results_long, aes(x = day, y = count, color = state)) +
+  geom_line() +
+  geom_vline(xintercept = peak_day, linetype = "dashed", color = "blue") +
+  labs(title = "SEIRD Model Over Time with Epidemic Peak",
+       x = "Day", y = "Number of Individuals") +
+  annotate("text", x = peak_day, y = max(results$Infectious), label = paste("Peak Day:", peak_day), vjust = -1, color = "blue")
+
+# Print the peak day
+print(paste("The epidemic peaks on day:", peak_day))
+
+
+
+```
+
+
+How long until the epidemic dies out?
+
+```{r}
+# Check when the epidemic dies out
+die_out_day <- min(which(results$Infectious == 0))
+
+# Plot the SEIRD line graph with epidemic die-out
+ggplot(results_long, aes(x = day, y = count, color = state)) +
+  geom_line() +
+  geom_vline(xintercept = die_out_day, linetype = "dashed", color = "blue") +
+  labs(title = "SEIRD Model Over Time with Epidemic Die-Out",
+       x = "Day", y = "Number of Individuals") +
+  annotate("text", x = die_out_day, y = 0, label = paste("Die-Out Day:", die_out_day), vjust = -1, color = "blue")
+
+# Print the die-out day
+print(paste("The epidemic dies out on day:", die_out_day))
+
+
+
+```
+
+How many people got infected?
+
+```{r}
+# Calculate the total number of people who got infected
+total_infected <- sum(results$Infectious + results$Recovered + results$Dead)
+
+# Plot the SEIRD line graph
+ggplot(results_long, aes(x = day, y = count, color = state)) +
+  geom_line() +
+  labs(title = "SEIRD Model Over Time",
+       x = "Day", y = "Number of Individuals") +
+  annotate("text", x = days, y = max(results$Infectious), label = paste("Total Infected:", total_infected), hjust = 1, color = "red")
+
+# Print the total number of infections
+print(paste("Total number of people infected:", total_infected))
+
+
+
+```
+
+After 20 days, 500 doses.
+
+```{r}
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(grid)
+library(gridExtra)
+library(png)
+library(tidyr)
+
+# Initialize the population
+set.seed(123)
+population_size <- 2000
+population <- data.frame(
+  id = 1:population_size,
+  state = "Susceptible",
+  days_in_state = 0,
+  school = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.3, 0.7)),
+  neighborhood = sample(1:2000, population_size, replace = TRUE),
+  church = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.4, 0.6)),
+  vaccinated = FALSE,
+  stringsAsFactors = FALSE
+)
+
+# Introduce one initial infectious case
+population$state[sample(1:population_size, 1)] <- "Infectious"
+
+# Function to update state based on social settings with different transmission rates
+update_state_social_weekly <- function(population, day, school_network, neighborhood_network, church_network, transmission_rates) {
+  day_of_week <- (day - 1) %% 7 + 1  # Calculate the day of the week (1 = Monday, ..., 7 = Sunday)
+  if (day_of_week <= 5) {
+    # School days
+    social_network <- school_network
+    transmission_rate <- transmission_rates$school
+  } else if (day_of_week == 6) {
+    # Church day
+    social_network <- church_network
+    transmission_rate <- transmission_rates$church
+  } else {
+    # Neighborhood day
+    social_network <- neighborhood_network
+    transmission_rate <- transmission_rates$neighborhood
+  }
+  
+  infected_ids <- which(population$state == "Infectious")
+  
+  if (length(infected_ids) > 0) {
+    # Identify contacts in the current social setting and expose based on transmission rate
+    contacts <- vector()
+    for (id in infected_ids) {
+      contact_ids <- which(as.logical(social_network[id, ]))
+      new_exposures <- contact_ids[runif(length(contact_ids)) < transmission_rate]
+      contacts <- c(contacts, new_exposures)
+    }
+    contacts <- unique(contacts)
+    for (id in contacts) {
+      if (population$state[id] == "Susceptible" && !population$vaccinated[id]) {
+        population$state[id] <- "Exposed"
+      }
+    }
+  }
+  
+  # Progress disease states
+  population <- population %>%
+    mutate(
+      days_in_state = ifelse(state %in% c("Exposed", "Infectious"), days_in_state + 1, days_in_state),
+      state = case_when(
+        state == "Exposed" & days_in_state >= 5 ~ "Infectious",  # Example incubation period
+        state == "Infectious" & days_in_state >= 10 ~ "Recovered",  # Example infectious period
+        TRUE ~ state
+      )
+    )
+  
+  return(population)
+}
+
+# Function to apply the emergency vaccination campaign
+campaign_vx <- function(population, doses_available) {
+  susceptible_ids <- which(population$state == "Susceptible" & !population$vaccinated)
+  if (length(susceptible_ids) <= doses_available) {
+    population$vaccinated[susceptible_ids] <- TRUE
+    population$state[susceptible_ids] <- "Vaccinated"
+  } else {
+    selected_ids <- sample(susceptible_ids, doses_available)
+    population$vaccinated[selected_ids] <- TRUE
+    population$state[selected_ids] <- "Vaccinated"
+  }
+  return(population)
+}
+
+# Simulation parameters
+days <- 200
+doses_available <- 500
+results <- data.frame(day = 1:days, Susceptible = NA, Exposed = NA, Infectious = NA, Recovered = NA, Dead = NA, Vaccinated = NA)
+
+# Run the simulation
+for (day in 1:days) {
+  if (day == 20) {
+    population <- campaign_vx(population, doses_available)
+  }
+  population <- update_state_social_weekly(population, day, school_network, neighborhood_network, church_network, transmission_rates)
+  results[day, 2:7] <- table(factor(population$state, levels = c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead", "Vaccinated")))
+}
+
+# Plot the SEIRD line graph including vaccinated individuals
+results_long <- results %>% pivot_longer(cols = -day, names_to = "state", values_to = "count")
+ggplot(results_long, aes(x = day, y = count, color = state)) +
+  geom_line() +
+  geom_vline(xintercept = 20, linetype = "dashed", color = "blue") +
+  labs(title = "SEIRDV Model Over Time with Emergency Vaccination Campaign",
+       x = "Day", y = "Number of Individuals") +
+  annotate("text", x = 20, y = max(results$Vaccinated, na.rm = TRUE), label = "Vaccination Day", vjust = -1, color = "blue")
+
+# Find the day of the epidemic peak
+peak_day <- which.max(results$Infectious)
+print(paste("The epidemic peaks on day:", peak_day))
+
+# Check when the epidemic dies out
+die_out_day <- min(which(results$Infectious == 0))
+print(paste("The epidemic dies out on day:", die_out_day))
+
+# Calculate the total number of people who got infected
+total_infected <- sum(results$Infectious + results$Recovered + results$Dead, na.rm = TRUE)
+print(paste("Total number of people infected:", total_infected))
+
+
+
+
+
+```
+
+What level of vaccine coverage would you need to reach to effectively control the outbreak by day 50?
+
+```{r}
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(grid)
+library(gridExtra)
+library(png)
+library(tidyr)
+
+# Initialize the population
+set.seed(123)
+population_size <- 2000
+population <- data.frame(
+  id = 1:population_size,
+  state = "Susceptible",
+  days_in_state = 0,
+  school = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.3, 0.7)),
+  neighborhood = sample(1:2000, population_size, replace = TRUE),
+  church = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.4, 0.6)),
+  vaccinated = FALSE,
+  stringsAsFactors = FALSE
+)
+
+# Introduce one initial infectious case
+population$state[sample(1:population_size, 1)] <- "Infectious"
+
+# Function to update state based on social settings with different transmission rates
+update_state_social_weekly <- function(population, day, school_network, neighborhood_network, church_network, transmission_rates) {
+  day_of_week <- (day - 1) %% 7 + 1  # Calculate the day of the week (1 = Monday, ..., 7 = Sunday)
+  if (day_of_week <= 5) {
+    # School days
+    social_network <- school_network
+    transmission_rate <- transmission_rates$school
+  } else if (day_of_week == 6) {
+    # Church day
+    social_network <- church_network
+    transmission_rate <- transmission_rates$church
+  } else {
+    # Neighborhood day
+    social_network <- neighborhood_network
+    transmission_rate <- transmission_rates$neighborhood
+  }
+  
+  infected_ids <- which(population$state == "Infectious")
+  
+  if (length(infected_ids) > 0) {
+    # Identify contacts in the current social setting and expose based on transmission rate
+    contacts <- vector()
+    for (id in infected_ids) {
+      contact_ids <- which(as.logical(social_network[id, ]))
+      new_exposures <- contact_ids[runif(length(contact_ids)) < transmission_rate]
+      contacts <- c(contacts, new_exposures)
+    }
+    contacts <- unique(contacts)
+    for (id in contacts) {
+      if (population$state[id] == "Susceptible" && !population$vaccinated[id]) {
+        population$state[id] <- "Exposed"
+      }
+    }
+  }
+  
+  # Progress disease states
+  population <- population %>%
+    mutate(
+      days_in_state = ifelse(state %in% c("Exposed", "Infectious"), days_in_state + 1, days_in_state),
+      state = case_when(
+        state == "Exposed" & days_in_state >= 5 ~ "Infectious",  # Example incubation period
+        state == "Infectious" & days_in_state >= 10 ~ "Recovered",  # Example infectious period
+        TRUE ~ state
+      )
+    )
+  
+  return(population)
+}
+
+# Function to apply the emergency vaccination campaign
+campaign_vx <- function(population, coverage) {
+  doses_available <- round(coverage * population_size)
+  susceptible_ids <- which(population$state == "Susceptible" & !population$vaccinated)
+  if (length(susceptible_ids) <= doses_available) {
+    population$vaccinated[susceptible_ids] <- TRUE
+    population$state[susceptible_ids] <- "Vaccinated"
+  } else {
+    selected_ids <- sample(susceptible_ids, doses_available)
+    population$vaccinated[selected_ids] <- TRUE
+    population$state[selected_ids] <- "Vaccinated"
+  }
+  return(population)
+}
+
+# Function to run the simulation with a given vaccine coverage level
+run_simulation <- function(coverage) {
+  population <- data.frame(
+    id = 1:population_size,
+    state = "Susceptible",
+    days_in_state = 0,
+    school = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.3, 0.7)),
+    neighborhood = sample(1:2000, population_size, replace = TRUE),
+    church = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.4, 0.6)),
+    vaccinated = FALSE,
+    stringsAsFactors = FALSE
+  )
+  population$state[sample(1:population_size, 1)] <- "Infectious"
+  
+  results <- data.frame(day = 1:days, Susceptible = NA, Exposed = NA, Infectious = NA, Recovered = NA, Dead = NA, Vaccinated = NA)
+  
+  for (day in 1:days) {
+    if (day == 20) {
+      population <- campaign_vx(population, coverage)
+    }
+    population <- update_state_social_weekly(population, day, school_network, neighborhood_network, church_network, transmission_rates)
+    results[day, 2:7] <- table(factor(population$state, levels = c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead", "Vaccinated")))
+  }
+  
+  return(results)
+}
+
+# Simulation parameters
+days <- 200
+coverage_levels <- seq(0.1, 1, by = 0.1)  # Varying coverage levels from 10% to 100%
+
+# Run simulations for different coverage levels
+coverage_results <- lapply(coverage_levels, function(coverage) {
+  results <- run_simulation(coverage)
+  results$coverage <- coverage
+  return(results)
+})
+
+# Combine all results into a single data frame
+all_results <- do.call(rbind, coverage_results)
+
+# Check which coverage level controls the outbreak by day 50
+controlled_coverage <- sapply(coverage_results, function(results) {
+  if (all(results$Infectious[51:days] == 0)) {
+    return(results$coverage[1])
+  } else {
+    return(NA)
+  }
+})
+
+# Minimum coverage level that controls the outbreak
+min_coverage <- min(controlled_coverage, na.rm = TRUE)
+print(paste("Minimum coverage level to control the outbreak by day 50:", min_coverage))
+
+# Plot the SEIRDV line graph for the minimum coverage level
+best_results <- coverage_results[[which.min(abs(coverage_levels - min_coverage))]]
+results_long <- best_results %>% pivot_longer(cols = -c(day, coverage), names_to = "state", values_to = "count")
+ggplot(results_long, aes(x = day, y = count, color = state)) +
+  geom_line() +
+  geom_vline(xintercept = 20, linetype = "dashed", color = "blue") +
+  labs(title = paste("SEIRDV Model with", min_coverage * 100, "% Coverage"),
+       x = "Day", y = "Number of Individuals") +
+  annotate("text", x = 20, y = max(results_long$count, na.rm = TRUE), label = "Vaccination Day", vjust = -1, color = "blue")
+
+
+
+```
+How would your answers change if there was some pre-existing immunity in the population, for example if 20% of the population had previously been vaccinated against measles?
+
+```{r}
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(grid)
+library(gridExtra)
+library(png)
+library(tidyr)
+
+# Initialize the population with 20% pre-existing immunity
+set.seed(123)
+population_size <- 2000
+herd_immunity_fraction <- 0.2
+immune_count <- round(population_size * herd_immunity_fraction)
+population <- data.frame(
+  id = 1:population_size,
+  state = "Susceptible",
+  days_in_state = 0,
+  school = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.3, 0.7)),
+  neighborhood = sample(1:2000, population_size, replace = TRUE),
+  church = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.4, 0.6)),
+  vaccinated = FALSE,
+  stringsAsFactors = FALSE
+)
+
+# Assign pre-existing immunity to 20% of the population
+immune_ids <- sample(1:population_size, immune_count)
+population$state[immune_ids] <- "Vaccinated"
+population$vaccinated[immune_ids] <- TRUE
+
+# Introduce one initial infectious case among the non-immune population
+non_immune_ids <- setdiff(1:population_size, immune_ids)
+population$state[sample(non_immune_ids, 1)] <- "Infectious"
+
+# Function to update state based on social settings with different transmission rates
+update_state_social_weekly <- function(population, day, school_network, neighborhood_network, church_network, transmission_rates) {
+  day_of_week <- (day - 1) %% 7 + 1  # Calculate the day of the week (1 = Monday, ..., 7 = Sunday)
+  if (day_of_week <= 5) {
+    # School days
+    social_network <- school_network
+    transmission_rate <- transmission_rates$school
+  } else if (day_of_week == 6) {
+    # Church day
+    social_network <- church_network
+    transmission_rate <- transmission_rates$church
+  } else {
+    # Neighborhood day
+    social_network <- neighborhood_network
+    transmission_rate <- transmission_rates$neighborhood
+  }
+  
+  infected_ids <- which(population$state == "Infectious")
+  
+  if (length(infected_ids) > 0) {
+    # Identify contacts in the current social setting and expose based on transmission rate
+    contacts <- vector()
+    for (id in infected_ids) {
+      contact_ids <- which(as.logical(social_network[id, ]))
+      new_exposures <- contact_ids[runif(length(contact_ids)) < transmission_rate]
+      contacts <- c(contacts, new_exposures)
+    }
+    contacts <- unique(contacts)
+    for (id in contacts) {
+      if (population$state[id] == "Susceptible" && !population$vaccinated[id]) {
+        population$state[id] <- "Exposed"
+      }
+    }
+  }
+  
+  # Progress disease states
+  population <- population %>%
+    mutate(
+      days_in_state = ifelse(state %in% c("Exposed", "Infectious"), days_in_state + 1, days_in_state),
+      state = case_when(
+        state == "Exposed" & days_in_state >= 5 ~ "Infectious",  # Example incubation period
+        state == "Infectious" & days_in_state >= 10 ~ "Recovered",  # Example infectious period
+        TRUE ~ state
+      )
+    )
+  
+  return(population)
+}
+
+# Simulation parameters
+days <- 200
+results <- data.frame(day = 1:days, Susceptible = NA, Exposed = NA, Infectious = NA, Recovered = NA, Dead = NA, Vaccinated = NA)
+
+# Run the simulation
+for (day in 1:days) {
+  population <- update_state_social_weekly(population, day, school_network, neighborhood_network, church_network, transmission_rates)
+  results[day, 2:7] <- table(factor(population$state, levels = c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead", "Vaccinated")))
+}
+
+# Plot the SEIRDV line graph including vaccinated individuals
+results_long <- results %>% pivot_longer(cols = -day, names_to = "state", values_to = "count")
+ggplot(results_long, aes(x = day, y = count, color = state)) +
+  geom_line() +
+  labs(title = "SEIRDV Model Over Time with Pre-existing Immunity",
+       x = "Day", y = "Number of Individuals")
+
+# Check when the epidemic dies out
+die_out_day <- min(which(results$Infectious == 0))
+print(paste("The epidemic dies out on day:", die_out_day))
+
+# Find the day of the epidemic peak
+peak_day <- which.max(results$Infectious)
+print(paste("The epidemic peaks on day:", peak_day))
+
+# Calculate the total number of people who got infected
+total_infected <- sum(results$Infectious + results$Recovered + results$Dead, na.rm = TRUE)
+print(paste("Total number of people infected:", total_infected))
+
+
+
+
+
+
+```
+
+
+
+## Ring vaccination  
+
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10289697/
+
+
+```{r}
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(grid)
+library(gridExtra)
+library(png)
+library(tidyr)
+
+# Initialize the population without pre-existing immunity
+set.seed(123)
+population_size <- 2000
+population <- data.frame(
+  id = 1:population_size,
+  state = "Susceptible",
+  days_in_state = 0,
+  school = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.3, 0.7)),
+  neighborhood = sample(1:2000, population_size, replace = TRUE),
+  church = sample(c(TRUE, FALSE), population_size, replace = TRUE, prob = c(0.4, 0.6)),
+  vaccinated = FALSE,
+  stringsAsFactors = FALSE
+)
+
+# Introduce one initial infectious case
+population$state[sample(1:population_size, 1)] <- "Infectious"
+
+# Function to update state based on social settings with ring vaccination
+update_state_social_weekly_ring_vaccination <- function(population, day, school_network, neighborhood_network, church_network, transmission_rates) {
+  day_of_week <- (day - 1) %% 7 + 1  # Calculate the day of the week (1 = Monday, ..., 7 = Sunday)
+  if (day_of_week <= 5) {
+    # School days
+    social_network <- school_network
+    transmission_rate <- transmission_rates$school
+  } else if (day_of_week == 6) {
+    # Church day
+    social_network <- church_network
+    transmission_rate <- transmission_rates$church
+  } else {
+    # Neighborhood day
+    social_network <- neighborhood_network
+    transmission_rate <- transmission_rates$neighborhood
+  }
+  
+  infected_ids <- which(population$state == "Infectious")
+  
+  if (length(infected_ids) > 0) {
+    # Identify contacts in the current social setting and expose based on transmission rate
+    contacts <- vector()
+    for (id in infected_ids) {
+      contact_ids <- which(as.logical(social_network[id, ]))
+      new_exposures <- contact_ids[runif(length(contact_ids)) < transmission_rate]
+      contacts <- c(contacts, new_exposures)
+    }
+    contacts <- unique(contacts)
+    for (id in contacts) {
+      if (population$state[id] == "Susceptible" && !population$vaccinated[id]) {
+        population$state[id] <- "Exposed"
+      }
+    }
+  }
+  
+  # Ring vaccination: vaccinate all susceptible contacts of infected individuals
+  for (id in infected_ids) {
+    contact_ids <- which(as.logical(social_network[id, ]))
+    for (contact_id in contact_ids) {
+      if (population$state[contact_id] == "Susceptible" && !population$vaccinated[contact_id]) {
+        population$state[contact_id] <- "Vaccinated"
+        population$vaccinated[contact_id] <- TRUE
+      }
+    }
+  }
+  
+  # Progress disease states
+  population <- population %>%
+    mutate(
+      days_in_state = ifelse(state %in% c("Exposed", "Infectious"), days_in_state + 1, days_in_state),
+      state = case_when(
+        state == "Exposed" & days_in_state >= 5 ~ "Infectious",  # Example incubation period
+        state == "Infectious" & days_in_state >= 10 ~ "Recovered",  # Example infectious period
+        TRUE ~ state
+      )
+    )
+  
+  return(population)
+}
+
+# Simulation parameters
+days <- 200
+results <- data.frame(day = 1:days, Susceptible = NA, Exposed = NA, Infectious = NA, Recovered = NA, Dead = NA, Vaccinated = NA)
+
+# Run the simulation
+for (day in 1:days) {
+  population <- update_state_social_weekly_ring_vaccination(population, day, school_network, neighborhood_network, church_network, transmission_rates)
+  results[day, 2:7] <- table(factor(population$state, levels = c("Susceptible", "Exposed", "Infectious", "Recovered", "Dead", "Vaccinated")))
+}
+
+# Plot the SEIRDV line graph including vaccinated individuals
+results_long <- results %>% pivot_longer(cols = -day, names_to = "state", values_to = "count")
+ggplot(results_long, aes(x = day, y = count, color = state)) +
+  geom_line() +
+  labs(title = "SEIRDV Model Over Time with Ring Vaccination Strategy",
+       x = "Day", y = "Number of Individuals")
+
+# Check when the epidemic dies out
+die_out_day <- min(which(results$Infectious == 0))
+print(paste("The epidemic dies out on day:", die_out_day))
+
+# Find the day of the epidemic peak
+peak_day <- which.max(results$Infectious)
+print(paste("The epidemic peaks on day:", peak_day))
+
+# Calculate the total number of people who got infected
+total_infected <- sum(results$Infectious + results$Recovered + results$Dead, na.rm = TRUE)
+print(paste("Total number of people infected:", total_infected))
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
