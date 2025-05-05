@@ -1,0 +1,108 @@
+---
+title: "MATHEMATICAL MODELLING ASS 1"
+author: "NEEMA NDANU"
+date: "2024-05-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## QUESTION
+
+### In mathematical modeling, there are different categories of models. Consider the following models 1. Empirical models 2. Stochastic models 3. Deterministic models 4. Individual/ Agent Based models. Discuss these models, give their merits and demerits and give relatable scenarios where each are applied
+
+## Empirical models
+
+Empirical models, also known as Statistical models, rely solely on data gathered from empirical studies, which involve direct observation or experience. These models are constructed based on real-world observations to uncover patterns and relationships present in the data. They are expressed as mathematical equations or statistical functions. Unlike other models, empirical models require no prior knowledge of the underlying biology or mechanisms governing the system. They simply analyze available data to identify patterns and relationships.
+
+### Merits
+
+1.  They are easy to construct when you have more data without the need for in-depth knowledge of system due to no prior prior knowledge of the underlying biology or mechanisms governing the system thus making them also straightforward to develop.
+2.  They are able to capture nonlinear and complex relationships. They are easy to understand and explain.
+
+### Demerits
+
+1.  They are not able to generalize beyond the observed range of data.
+2.  The reliability and accuracy of empirical models rely heavily on the quality and representation of the data used.
+3.  They have limited adaptability as they are not able to easily adapt to changes in the underlying system or in unseen data.
+4.  Due to also lack of prior knowledge of the underlying biology or mechanisms governing the system it may limit their predictive accuracy or explanatory power.
+
+### Related scenarios
+
+1.  In predicting of stock prices, empirical models rely on historical price data, trading volumes, and other market indicators.
+2.  In marketing and business analytics, empirical models are used to analyze customer behavior based on data collected from sales transactions, website visits, social media interactions, and demographic information.
+
+## Stochastic Models
+
+They acknowledge that some things in the real world are unpredictable and therefore embrace this uncertainty by incorporating randomness into the model. Instead of using fixed values for variables, they use probability distributions which represent a range of possible values for each variable. Since they account for randomness, running the model multiple times with the same inputs can produce different results each time, therefore creating an "ensemble" of output.
+
+### Merits
+
+1. They account for random variation in future outcomes, allowing for estimates of the likely variability of these outcomes which helps in understanding and managing uncertainty.
+2. They provide a way to monitor predictions by establishing whether they fall within expected bounds through offering a range within which future outcomes are expected to fall with a certain level of confidence.
+3. They enable testing of assumptions through different methods, thus the reliability and validity of the model can be assessed more rigorously.
+
+### Demerits
+
+1. They simplify complex events into a few parameters, which can lead to criticism that the assumptions are overly simplistic and unrealistic.
+2. Due to their clear and rigid nature, stochastic models have limited scope for incorporating judgment or external factors into the model, resulting in overlooking important nuances or variables that could impact outcomes.
+3. They can be computationally demanding, requiring advanced statistical and computational skills to perform, making it challenging to execute and interpret the results.
+
+### Related Scenarios
+
+1. Stochastic modeling is also utilized in actuarial work, where it helps assess risk and make projections related to insurance and pension plans.
+2. Stochastic modeling is crucial for financial decision-making, as it allows professionals to evaluate various outcomes under different scenarios and conditions.
+3. Stochastic investment models aim to predict fluctuations in prices and returns on assets (ROA) over time.
+
+## Deterministic models
+
+They are models that assume that the result is exactly determined by the inputs and relationships specified in the model thus allows you to calculate a future event exactly, without the involvement of randomness. They ignore any randomness or variability in the system.The same input will always produce the same output. 
+
+### Merits
+
+1. They are simple as they rely on single assumptions about long-term average returns and inflation.
+2. They are easier to understand and hence may be more appropriate for some customers.
+
+### Demerits
+
+1. Deterministic models, especially those with simplistic projections, struggle to consider ongoing variables, compromising accuracy and reliability.
+2. Small changes in initial conditions can result in significantly different outcomes, introducing unpredictability and reducing confidence in the model's predictions.
+3. Deterministic models heavily rely on assumptions, particularly regarding future trends or changes, which can significantly alter outcomes if these assumptions are inaccurate.
+
+### Related scenarios
+
+1. Financial planners often rely on deterministic models in cash flow tools to forecast future investment returns. These models simplify projections by using a fixed estimate, like 2%, 5%, or 8%, to predict the future value of a fund or portfolio. This method consistently generates specific outcomes based on given inputs
+2. They can also utilized in weather forecasting to predict future weather conditions based on historical data and known variables.For example, a deterministic weather model may use current temperature, humidity, and wind speed data to forecast tomorrow's weather.
+
+## Individual/ Agent Based Models
+
+They are models used to to study the interactions between people, things, places, and time. They are stochastic models built from the bottom up meaning individual agents (often people in epidemiology) are assigned certain attributes.They  simulate interactions among individual entities (agents), such as people, animals, or cells, to understand how their actions and interactions lead to emergent behavior at the system level.
+
+### Merits
+
+1. Interactions among agents and the environment lead to emergent effects, which may differ from the behavior of individual agents.
+2. Unlike traditional regression-based methods, agent-based modeling allows for the exploration of complex systems with non-independent individuals and feedback loops in causal mechanisms.
+3. They are not limited to observed data and can be used to model counter factual scenarios or experiments that may be impractical or unethical in the real world.
+
+### Demerits
+
+1. Finding data parameters, such as reproductive rates for infectious diseases, can be challenging and may not always be available in the literature.
+2. Assessing the validity of the model, especially when modeling unobserved associations, can be difficult.
+3.  The complexity of agent-based models may limit their generalization and applicability to other contexts.
+
+### Related scenarios
+
+1. Agent-based models simulate disease spread, aiding public health efforts like COVID-19 control by evaluating interventions such as vaccinations and distancing.
+2. In urban traffic,they assist planners in optimizing infrastructure and signals to reduce congestion and travel times.
+3. Environmental scientists use agent-based models to understand ecosystem dynamics, including species interactions and climate change impacts on biodiversity.
+
+
+
+
+
+
+
+
+

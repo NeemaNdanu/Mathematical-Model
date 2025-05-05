@@ -1,0 +1,421 @@
+---
+title: "GROUP 5 MATHEMATICAL MODELLING"
+author: "NEEMA NDANU"
+date: "2024-06-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Mathematical model for measles disease with control on the susceptible and  exposed compartment
+### INSTRUCTIONS
+You are required to review the paper assigned to your group and distill out information based on the 
+following:
+− Focus and motivation of the paper
+− Data Source
+− Model input parameters
+− Model input values (state or compartment values)
+− Model equations used
+− Exploratory Data Analysis output
+
+```{r}
+# Load the necessary packages
+library(deSolve)
+library(tidyverse)
+library(DiagrammeR)
+library(ggplot2)
+library(gridExtra)
+
+# Define parameters
+population_size <- 1000
+initial_susceptible <- 800
+initial_infected <- 10
+initial_recovered <- 0
+initial_exposed <- 200
+exposure_rate <- 0.09  # round to 2dp
+recruitment_rate <- 0.037 # round to 2dp
+infected_rate <- 0.14 # round to 2 dp
+leaving_rate <- 0.01241 # per day
+recovery_rate <- 0.125 #  per day
+simulation_period <- 10 # in years
+
+# Create a diagram to visualize the SEIR model
+DiagrammeR::grViz("
+digraph SEIR {
+  rankdir = LR;
+  node [shape = circle, fontsize = 20, penwidth = 2.0]
+  S [label = 'S']
+  E [label = 'E']
+  I [label = 'I']
+  R [label = 'R']
+  N [label = 'N']
+  
+  edge [arrowhead = vee]
+  S -> E [label = 'β = 0.09']
+  E -> I [label = 'α = 0.14']
+  I -> R [label = 'γ = 0.125']
+  E -> R [label = 'σ']
+  S -> R [label = 'v']
+  N -> S [label = 'b']
+}
+")
+```
+
+S(t) The number of susceptible individuals at a given time, t
+E(t) The number of exposed individuals at a given time, t
+I(t) The number of infected individuals at a given time, t
+R(t) The number of recovered individuals at a given time, t
+
+b Recruitment rate ( by birth and/or immigrants)
+v vaccination rate for the susceptible class who later got vaccinated
+µ Leaving rate (by death and/or emigrants)
+β The contact rate
+γ The rate at which an infected individuals recovered per unit time
+σ The rate of exposed individuals who have undergone testing and therapy
+α The rate at which an exposed become infected
+
+```{r}
+# Define the SEIR model
+seir_model <- function(time, state, parameters) {
+  with(as.list(c(state, parameters)), {
+    
+    # SEIR equations
+    dS <- b - beta * S * I - (v + mu) * S
+    dE <- beta * S * I  - (v + alpha + sigma) * E
+    dI <- alpha * E - (mu + gamma) * I
+    dR <- v * S + gamma * I + sigma * E - mu * R
+    
+    # Return the rate of change
+    return(list(c(dS, dE, dI, dR)))
+  })
+}
+
+# Initial state values
+initial_state_values <- c(S = initial_susceptible, E = initial_exposed, I = initial_infected, R = initial_recovered)
+
+# When V =0.0 and sigma =0.0
+# Parameters
+parameters <- c(beta = exposure_rate, gamma = recovery_rate, N = population_size, b = recruitment_rate, v = 0.0, mu = leaving_rate, alpha = infected_rate, sigma = 0.0)
+
+# Time vector with increased resolution
+time <- seq(0, simulation_period, by = 0.1)  
+
+# Solve the model with the updated time vector
+output <- ode(y = initial_state_values, times = time, func = seir_model, parms = parameters)
+
+# Convert the output to a data frame
+output_df <- as.data.frame(output)
+colnames(output_df) <- c("time", "Susceptible", "Exposed", "Infected", "Recovered")
+
+# Convert the data to a tidy format
+dat <- output_df %>% pivot_longer(cols = c(Susceptible, Exposed, Infected, Recovered), names_to = "state", values_to = "value")
+
+# Plot the SEIR model with the increased resolution
+plot1 <- ggplot(data = dat, aes(x = time, y = value, color = state)) +
+  geom_line() +
+  labs(title = "SEIR Model,σ = 0.0 & V = 0.0",
+       x = "Time",
+       y = "Number of Individuals") +
+  scale_color_manual(values = c("Susceptible" = "blue",
+                                 "Exposed" = "purple",
+                                 "Infected" = "red",
+                                 "Recovered" = "green")) +
+  theme_minimal()
+
+# When V =0.0 and sigma =0.25
+# Parameters
+parameters <- c(beta = exposure_rate, gamma = recovery_rate, N = population_size, b = recruitment_rate, v = 0.0, mu = leaving_rate, alpha = infected_rate, sigma = 0.25)
+
+# Time vector with increased resolution
+time <- seq(0, simulation_period, by = 0.1)  
+
+# Solve the model with the updated time vector
+output <- ode(y = initial_state_values, times = time, func = seir_model, parms = parameters)
+
+# Convert the output to a data frame
+output_df <- as.data.frame(output)
+colnames(output_df) <- c("time", "Susceptible", "Exposed", "Infected", "Recovered")
+
+# Convert the data to a tidy format
+dat <- output_df %>% pivot_longer(cols = c(Susceptible, Exposed, Infected, Recovered), names_to = "state", values_to = "value")
+
+# Plot the SEIR model with the increased resolution
+plot2 <-ggplot(data = dat, aes(x = time, y = value, color = state)) +
+  geom_line() +
+  labs(title = "SEIR Model,σ = 0.25 & v = 0.0",
+       x = "Time",
+       y = "Number of Individuals") +
+  scale_color_manual(values = c("Susceptible" = "blue",
+                                 "Exposed" = "purple",
+                                 "Infected" = "red",
+                                 "Recovered" = "green")) +
+  theme_minimal()
+
+# Arrange plots side by side
+print(plot1)
+print(plot2)
+grid.arrange(plot1, plot2, ncol = 2)
+```
+### EXPLANATION
+If none of the exposed individuals at the latent period are diagnosed and treatedσ, and there is no control measure been introduced into the susceptible class,(v). It will take a much longer time for exposed individuals to decrease, longer period before we notice any significant improvement for individuals to recovered from the measles disease and the infected individuals will significantly increase before noticing a drop in the number of infected individuals. 
+On the hand when we increase the exposed individuals at the latent period are diagnosed and treated,σ, by 25% there is a clear improvement in the result.
+
+```{r}
+# When V =0.25 and sigma =0.25
+# Parameters
+parameters <- c(beta = exposure_rate, gamma = recovery_rate, N = population_size, b = recruitment_rate, v = 0.25, mu = leaving_rate, alpha = infected_rate, sigma = 0.25)
+
+# Time vector with increased resolution
+time <- seq(0, simulation_period, by = 0.1)  
+
+# Solve the model with the updated time vector
+output <- ode(y = initial_state_values, times = time, func = seir_model, parms = parameters)
+
+# Convert the output to a data frame
+output_df <- as.data.frame(output)
+colnames(output_df) <- c("time", "Susceptible", "Exposed", "Infected", "Recovered")
+
+# Convert the data to a tidy format
+dat <- output_df %>% pivot_longer(cols = c(Susceptible, Exposed, Infected, Recovered), names_to = "state", values_to = "value")
+
+# Plot the SEIR model with the increased resolution
+plot3 <- ggplot(data = dat, aes(x = time, y = value, color = state)) +
+  geom_line() +
+  labs(title = "SEIR Model,σ = 0.25 & v = 0.25",
+       x = "Time",
+       y = "Number of Individuals") +
+  scale_color_manual(values = c("Susceptible" = "blue",
+                                 "Exposed" = "purple",
+                                 "Infected" = "red",
+                                 "Recovered" = "green")) +
+  theme_minimal()
+
+# When σ =0.50 and v =0.25
+# Parameters
+parameters <- c(beta = exposure_rate, gamma = recovery_rate, N = population_size, b = recruitment_rate, v = 0.25, mu = leaving_rate, alpha = infected_rate, sigma = 0.50)
+
+# Time vector with increased resolution
+time <- seq(0, simulation_period, by = 0.1)  
+
+# Solve the model with the updated time vector
+output <- ode(y = initial_state_values, times = time, func = seir_model, parms = parameters)
+
+# Convert the output to a data frame
+output_df <- as.data.frame(output)
+colnames(output_df) <- c("time", "Susceptible", "Exposed", "Infected", "Recovered")
+
+# Convert the data to a tidy format
+dat <- output_df %>% pivot_longer(cols = c(Susceptible, Exposed, Infected, Recovered), names_to = "state", values_to = "value")
+
+# Plot the SEIR model with the increased resolution
+plot4 <-ggplot(data = dat, aes(x = time, y = value, color = state)) +
+  geom_line() +
+  labs(title = "SEIR Model,σ =0.50 & v =0.25",
+       x = "Time",
+       y = "Number of Individuals") +
+  scale_color_manual(values = c("Susceptible" = "blue",
+                                 "Exposed" = "purple",
+                                 "Infected" = "red",
+                                 "Recovered" = "green")) +
+  theme_minimal()
+
+# Arrange plots side by side
+print(plot3)
+print(plot4)
+grid.arrange(plot3, plot4, ncol = 2)
+```
+
+### EXPLANATION
+If 25% of susceptible individuals are vaccinated,(v), in addition to increases of 25% to 50% of the exposed individuals at the latent period who are diagnosed and treated(σ). It will take lesser time for exposed individuals to decrease significantly,lesser time before noticing
+any significant improvement for individuals to recovered from the disease and the infected individuals will significantly decline over time
+
+```{r}
+# When σ =0.50 and v =0.50
+# Parameters
+parameters <- c(beta = exposure_rate, gamma = recovery_rate, N = population_size, b = recruitment_rate, v = 0.50, mu = leaving_rate, alpha = infected_rate, sigma = 0.50)
+
+# Time vector with increased resolution
+time <- seq(0, simulation_period, by = 0.1)  
+
+# Solve the model with the updated time vector
+output <- ode(y = initial_state_values, times = time, func = seir_model, parms = parameters)
+
+# Convert the output to a data frame
+output_df <- as.data.frame(output)
+colnames(output_df) <- c("time", "Susceptible", "Exposed", "Infected", "Recovered")
+
+# Convert the data to a tidy format
+dat <- output_df %>% pivot_longer(cols = c(Susceptible, Exposed, Infected, Recovered), names_to = "state", values_to = "value")
+
+# Plot the SEIR model with the increased resolution
+plot5 <-ggplot(data = dat, aes(x = time, y = value, color = state)) +
+  geom_line() +
+  labs(title = "SEIR Model,σ =0.50 & v =0.50",
+       x = "Time",
+       y = "Number of Individuals") +
+  scale_color_manual(values = c("Susceptible" = "blue",
+                                 "Exposed" = "purple",
+                                 "Infected" = "red",
+                                 "Recovered" = "green")) +
+  theme_minimal()
+
+# When σ =0.75 and v =0.50
+# Parameters
+parameters <- c(beta = exposure_rate, gamma = recovery_rate, N = population_size, b = recruitment_rate, v = 0.75, mu = leaving_rate, alpha = infected_rate, sigma = 0.50)
+
+# Time vector with increased resolution
+time <- seq(0, simulation_period, by = 0.1)  
+
+# Solve the model with the updated time vector
+output <- ode(y = initial_state_values, times = time, func = seir_model, parms = parameters)
+
+# Convert the output to a data frame
+output_df <- as.data.frame(output)
+colnames(output_df) <- c("time", "Susceptible", "Exposed", "Infected", "Recovered")
+
+# Convert the data to a tidy format
+dat <- output_df %>% pivot_longer(cols = c(Susceptible, Exposed, Infected, Recovered), names_to = "state", values_to = "value")
+
+# Plot the SEIR model with the increased resolution
+plot6 <-ggplot(data = dat, aes(x = time, y = value, color = state)) +
+  geom_line() +
+  labs(title = "SEIR Model,σ=0.75 & v=0.50",
+       x = "Time",
+       y = "Number of Individuals") +
+  scale_color_manual(values = c("Susceptible" = "blue",
+                                 "Exposed" = "purple",
+                                 "Infected" = "red",
+                                 "Recovered" = "green")) +
+  theme_minimal()
+
+# Arrange plots side by side
+print(plot5)
+print(plot6)
+grid.arrange(plot5, plot6, ncol = 2)
+```
+### EXPLANATION
+If 50% of susceptible individuals are vaccinated,(v), in addition to increases of 50% to 75% of the exposed individuals at the latent period, who are diagnosed and treated(σ). There is a sudden decline of exposed individuals with time, it takes a  much lesser period for individuals to recover from the disease and lastly infected individuals will take a lesser period to go down over time.
+
+```{r}
+# When σ =0.50 and v =0.75
+# Parameters
+parameters <- c(beta = exposure_rate, gamma = recovery_rate, N = population_size, b = recruitment_rate, v = 0.70, mu = leaving_rate, alpha = infected_rate, sigma = 0.50)
+
+# Time vector with increased resolution
+time <- seq(0, simulation_period, by = 0.1)  
+
+# Solve the model with the updated time vector
+output <- ode(y = initial_state_values, times = time, func = seir_model, parms = parameters)
+
+# Convert the output to a data frame
+output_df <- as.data.frame(output)
+colnames(output_df) <- c("time", "Susceptible", "Exposed", "Infected", "Recovered")
+
+# Convert the data to a tidy format
+dat <- output_df %>% pivot_longer(cols = c(Susceptible, Exposed, Infected, Recovered), names_to = "state", values_to = "value")
+
+# Plot the SEIR model with the increased resolution
+plot7 <- ggplot(data = dat, aes(x = time, y = value, color = state)) +
+  geom_line() +
+  labs(title = "SEIR Model,σ=0.50 & v =0.75",
+       x = "Time",
+       y = "Number of Individuals") +
+  scale_color_manual(values = c("Susceptible" = "blue",
+                                 "Exposed" = "purple",
+                                 "Infected" = "red",
+                                 "Recovered" = "green")) +
+  theme_minimal()
+
+# When σ =0.75 and v =0.75
+# Parameters
+parameters <- c(beta = exposure_rate, gamma = recovery_rate, N = population_size, b = recruitment_rate, v = 0.75, mu = leaving_rate, alpha = infected_rate, sigma = 0.75)
+
+# Time vector with increased resolution
+time <- seq(0, simulation_period, by = 0.1)  
+
+# Solve the model with the updated time vector
+output <- ode(y = initial_state_values, times = time, func = seir_model, parms = parameters)
+
+# Convert the output to a data frame
+output_df <- as.data.frame(output)
+colnames(output_df) <- c("time", "Susceptible", "Exposed", "Infected", "Recovered")
+
+# Convert the data to a tidy format
+dat <- output_df %>% pivot_longer(cols = c(Susceptible, Exposed, Infected, Recovered), names_to = "state", values_to = "value")
+
+# Plot the SEIR model with the increased resolution
+plot8 <-ggplot(data = dat, aes(x = time, y = value, color = state)) +
+  geom_line() +
+  labs(title = "SEIR Model,σ=0.75 & v =0.75",
+       x = "Time",
+       y = "Number of Individuals") +
+  scale_color_manual(values = c("Susceptible" = "blue",
+                                 "Exposed" = "purple",
+                                 "Infected" = "red",
+                                 "Recovered" = "green")) +
+  theme_minimal()
+
+# Arrange plots side by side
+print(plot7)
+print(plot8)
+grid.arrange(plot7, plot8, ncol = 2)
+```
+### EXPLANATION
+If 75% of exposed individuals at the latent period are
+diagnosed and treated(σ). In addition to increases of 50% to 75% of susceptible individuals who are vaccinated(v),we will have a better result in comparison to the previous results stated before.
+
+```{r}
+# Arrange plots side by side with larger size
+grid.arrange(plot1, plot2, plot3, plot4, ncol = 2, widths = c(8, 8),heights = c(5, 5))
+grid.arrange(plot5, plot6, plot7, plot8, ncol = 2, widths = c(8, 8),heights = c(5, 5))
+```
+Impact of Parameters (v and σ):
+
+v: Represents the rate at which individuals become immune to the disease through vaccination or other means.
+σ: Represents the rate at which exposed individuals are identified and receive treatment.
+Simulation Results:
+
+We can conclude that an increase in either v and σ will results to fewer infected, exposed and lesser period before noticing any significant improvement for individuals to recovered from the disease. There will be a faster recovery rate.
+
+### Application of R0 to measles in Nigeria
+```{r}
+# Parameter 
+b <- 0.03691  
+v <- c(0.0, 0.25, 0.50, 0.75) 
+mu <- 0.01241  
+beta <- 0.09091  # per day
+gamma <- 0.125  # per day
+sigma <- c(0.0, 0.25, 0.50, 0.75)  
+alpha <- 0.14286  # per day
+
+# Calculate R0 for each value of σ
+R0_values <- alpha * beta * b / (mu * (mu + alpha + sigma) * (mu + gamma))
+R0_values
+
+# Create data frame for plotting
+df_sigma <- data.frame(sigma = sigma, R0 = R0_values)
+
+# Plot R0 values against sigma
+library(ggplot2)
+plot_sigma <- ggplot(df_sigma, aes(x = sigma, y = R0)) +
+  geom_point(size = 3) +
+  geom_line(method = "loess", se = FALSE, color = "red") +  # Add line
+  labs(title = "Effect of sigma on Reproductive Number (R0)",
+       x = "sigma (Exposed Individuals Testing Rate)",
+       y = "R0 (Basic Reproduction Number)") +
+  theme_minimal()
+
+# Print the plot
+print(plot_sigma)
+
+```
+### EXPLANATION
+
+The Basic Reproduction Number, R0, is a key measure in understanding disease spread. It tells us how many new cases one infected person will cause in a susceptible population. If R0 is above 1, the disease will likely spread, while if it's below 1, the disease will eventually die out. In our model, R0 changes with the rate of exposed individuals undergoing testing and therapy, denoted as σ.
+
+When σ is 0, R0 is above 1, indicating that without testing and therapy, the disease will persist in the population. As σ increases up to 1, R0 decreases, suggesting better control and potential elimination of the disease. This reflects how effective testing and therapy strategies impact disease spread.
+
+In mathematical modelling stability refers to whether the disease is likely to persist within a population or die out over time.
+Regarding stability, when R0 is less than 1, it means the disease-free state is stable, and the population is likely to remain disease-free over time. Conversely, if R0 is above 1, the disease-free state is unstable, and the disease will persist within the population, potentially spreading further. This understanding of R0 acts as a threshold for determining whether the disease will establish itself or die out in a population.
